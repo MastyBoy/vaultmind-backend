@@ -55,18 +55,17 @@ def get_memory():
         lines = f.readlines()
         return [json.loads(line.strip()) for line in lines]
 
-# /log
-@app.post("/log")
-def log_event(entry: LogEvent):
-    log = {
-        "timestamp": time.time(),
-        "source": entry.source,
-        "event": entry.event,
-        "data": entry.data
-    }
-    with open("vaultmind_log.json", "a") as f:
-        f.write(json.dumps(log) + "\n")
-    return {"status": "logged"}
+import subprocess
+
+@app.post("/execute")
+async def execute_command(cmd: Command):
+    try:
+        result = subprocess.run(cmd.input, shell=True, capture_output=True, text=True, timeout=10)
+        output = result.stdout if result.stdout else result.stderr
+    except Exception as e:
+        output = f"Error: {str(e)}"
+    log_to_memory(cmd.input, output)
+    return {"result": output}
 
 # /feedback
 @app.post("/feedback")
