@@ -5,6 +5,8 @@ import time, json, os, subprocess
 
 app = FastAPI()
 
+# Trigger deploy
+
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
