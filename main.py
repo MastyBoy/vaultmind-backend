@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-import time, json, os
+import time, json, os, subprocess
 
 app = FastAPI()
 
@@ -38,25 +38,7 @@ def log_to_memory(command, result):
     with open("vaultmind_memory.json", "a") as f:
         f.write(json.dumps(entry) + "\n")
 
-# /execute (simulated)
-@app.post("/execute")
-async def execute_command(cmd: Command):
-    result = f"VaultMind executed: {cmd.input}"
-    log_to_memory(cmd.input, result)
-    print(result)
-    return {"result": result}
-
-# /memory
-@app.get("/memory")
-def get_memory():
-    if not os.path.exists("vaultmind_memory.json"):
-        return []
-    with open("vaultmind_memory.json", "r") as f:
-        lines = f.readlines()
-        return [json.loads(line.strip()) for line in lines]
-
-import subprocess
-
+# /execute
 @app.post("/execute")
 async def execute_command(cmd: Command):
     try:
@@ -66,6 +48,14 @@ async def execute_command(cmd: Command):
         output = f"Error: {str(e)}"
     log_to_memory(cmd.input, output)
     return {"result": output}
+
+# /memory
+@app.get("/memory")
+def get_memory():
+    if not os.path.exists("vaultmind_memory.json"):
+        return []
+    with open("vaultmind_memory.json", "r") as f:
+        return [json.loads(line.strip()) for line in f]
 
 # /feedback
 @app.post("/feedback")
@@ -81,12 +71,23 @@ def collect_feedback(entry: Feedback):
         f.write(json.dumps(log) + "\n")
     return {"status": "feedback recorded"}
 
+# /log (POST)
+@app.post("/log")
+def log_event(entry: LogEvent):
+    log = {
+        "timestamp": time.time(),
+        "source": entry.source,
+        "event": entry.event,
+        "data": entry.data
+    }
+    with open("vaultmind_log.json", "a") as f:
+        f.write(json.dumps(log) + "\n")
+    return {"status": "logged"}
+
+# /log (GET)
 @app.get("/log")
 def get_logs():
     if not os.path.exists("vaultmind_log.json"):
         return []
     with open("vaultmind_log.json", "r") as f:
         return [json.loads(line.strip()) for line in f]
-
-
-
