@@ -80,3 +80,13 @@ def collect_feedback(entry: Feedback):
     with open("vaultmind_feedback.json", "a") as f:
         f.write(json.dumps(log) + "\n")
     return {"status": "feedback recorded"}
+
+@app.get("/log")
+def get_logs():
+    if not os.path.exists("vaultmind_log.json"):
+        return []
+    with open("vaultmind_log.json", "r") as f:
+        return [json.loads(line.strip()) for line in f]
+
+
+
