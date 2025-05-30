@@ -118,3 +118,41 @@ def get_logs():
         return []
     with open("vaultmind_log.json", "r") as f:
         return [json.loads(line.strip()) for line in f]
+
+from collections import Counter
+
+@app.get("/feedback_summary")
+def feedback_summary():
+    if not os.path.exists("vaultmind_feedback.json"):
+        return {
+            "total_entries": 0,
+            "average_rating": 0,
+            "rating_distribution": {},
+            "top_keywords": []
+        }
+
+    with open("vaultmind_feedback.json", "r") as f:
+        entries = [json.loads(line.strip()) for line in f]
+
+    total = len(entries)
+    if total == 0:
+        return {
+            "total_entries": 0,
+            "average_rating": 0,
+            "rating_distribution": {},
+            "top_keywords": []
+        }
+
+    avg_rating = sum(e["rating"] for e in entries) / total
+    distribution = Counter(e["rating"] for e in entries)
+
+    all_words = " ".join(e["note"] for e in entries if e["note"]).lower().split()
+    keywords = Counter(all_words).most_common(5)
+
+    return {
+        "total_entries": total,
+        "average_rating": round(avg_rating, 2),
+        "rating_distribution": dict(distribution),
+        "top_keywords": [kw for kw, _ in keywords]
+    }
+
