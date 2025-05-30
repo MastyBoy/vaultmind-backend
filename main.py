@@ -2,10 +2,10 @@ from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import time, json, os, subprocess
-from typing import List, Optional
 
 app = FastAPI()
 
+# Allow CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,6 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Schemas
 class Command(BaseModel):
     input: str
 
@@ -27,6 +28,7 @@ class Feedback(BaseModel):
     rating: int
     note: str = ""
 
+# Memory logger
 def log_to_memory(command, result):
     entry = {
         "timestamp": time.time(),
@@ -47,14 +49,11 @@ async def execute_command(cmd: Command):
     return {"result": output}
 
 @app.get("/memory")
-def get_memory(limit: Optional[int] = None, offset: int = 0, search: Optional[str] = None):
+def get_memory():
     if not os.path.exists("vaultmind_memory.json"):
         return []
     with open("vaultmind_memory.json", "r") as f:
-        lines = [json.loads(line.strip()) for line in f if line.strip()]
-    if search:
-        lines = [entry for entry in lines if search.lower() in entry["command"].lower() or search.lower() in entry["result"].lower()]
-    return lines[offset:(offset + limit) if limit else None]
+        return [json.loads(line.strip()) for line in f]
 
 @app.post("/feedback")
 def collect_feedback(entry: Feedback):
@@ -70,16 +69,36 @@ def collect_feedback(entry: Feedback):
     return {"status": "feedback recorded"}
 
 @app.get("/feedback")
-def get_feedback(limit: Optional[int] = None, offset: int = 0, rating: Optional[int] = None, search: Optional[str] = None):
+def get_feedback(
+    rating: int = Query(None),
+    min_rating: int = Query(None),
+    max_rating: int = Query(None),
+    note_contains: str = Query(None),
+    type: str = Query(None),
+    limit: int = Query(None)
+):
     if not os.path.exists("vaultmind_feedback.json"):
         return []
     with open("vaultmind_feedback.json", "r") as f:
-        lines = [json.loads(line.strip()) for line in f if line.strip()]
-    if rating is not None:
-        lines = [entry for entry in lines if entry.get("rating") == rating]
-    if search:
-        lines = [entry for entry in lines if search.lower() in entry["command"].lower() or search.lower() in entry["result"].lower() or search.lower() in entry["note"].lower()]
-    return lines[offset:(offset + limit) if limit else None]
+        entries = [json.loads(line.strip()) for line in f]
+
+    filtered = []
+    for entry in entries:
+        if rating is not None and entry["rating"] != rating:
+            continue
+        if min_rating is not None and entry["rating"] < min_rating:
+            continue
+        if max_rating is not None and entry["rating"] > max_rating:
+            continue
+        if note_contains and note_contains.lower() not in entry["note"].lower():
+            continue
+        if type and entry.get("type") != type:
+            continue
+        filtered.append(entry)
+        if limit and len(filtered) >= limit:
+            break
+    return filtered
+
 
 @app.post("/log")
 def log_event(entry: LogEvent):
@@ -94,13 +113,8 @@ def log_event(entry: LogEvent):
     return {"status": "logged"}
 
 @app.get("/log")
-def get_logs(limit: Optional[int] = None, offset: int = 0, source: Optional[str] = None, search: Optional[str] = None):
+def get_logs():
     if not os.path.exists("vaultmind_log.json"):
         return []
     with open("vaultmind_log.json", "r") as f:
-        lines = [json.loads(line.strip()) for line in f if line.strip()]
-    if source:
-        lines = [entry for entry in lines if entry.get("source") == source]
-    if search:
-        lines = [entry for entry in lines if search.lower() in entry["event"].lower() or search.lower() in json.dumps(entry.get("data", {})).lower()]
-    return lines[offset:(offset + limit) if limit else None]
+        return [json.loads(line.strip()) for line in f]
